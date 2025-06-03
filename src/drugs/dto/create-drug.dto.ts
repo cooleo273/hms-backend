@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, Min, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class CreateDrugDto {
   @IsString()
@@ -6,27 +6,8 @@ export class CreateDrugDto {
   name: string;
 
   @IsString()
-  @IsNotEmpty()
-  category: string;
-
-  @IsString()
   @IsOptional()
-  description?: string;
-
-  @IsNumber()
-  @Min(0)
-  @IsNotEmpty()
-  quantity: number;
-
-  @IsNumber()
-  @Min(0)
-  @IsNotEmpty()
-  minimumQuantity: number;
-
-  @IsNumber()
-  @Min(0)
-  @IsNotEmpty()
-  unitPrice: number;
+  genericName?: string;
 
   @IsString()
   @IsOptional()
@@ -34,9 +15,35 @@ export class CreateDrugDto {
 
   @IsString()
   @IsOptional()
-  storageLocation?: string;
+  category?: string;
 
   @IsString()
   @IsOptional()
-  notes?: string;
+  strength?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  unit: string;
+
+  @IsNumber()
+  @Min(0)
+  @IsNotEmpty()
+  stockQuantity: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsNotEmpty()
+  reorderLevel: number;
+
+  @IsNumber()
+  @IsOptional()
+  costPrice?: number;
+
+  @IsNumber()
+  @IsOptional()
+  sellingPrice?: number;
+
+  @IsString()
+  @IsOptional()
+  location?: string;
 } 

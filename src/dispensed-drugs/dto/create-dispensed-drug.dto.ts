@@ -6,19 +6,15 @@ export class CreateDispensedDrugDto {
   prescriptionId: string;
 
   @IsString()
-  drugBatchId: string;
+  batchId: string;
 
   @IsNumber()
-  quantity: number;
+  quantityDispensed: number;
 
   @IsString()
   @IsOptional()
   notes?: string;
 
-  @IsDate()
-  @Type(() => Date)
-  dispensedAt: Date;
-
   @IsString()
-  dispensedBy: string; // Pharmacist ID
+  dispensedById: string; // Pharmacist ID
 } 

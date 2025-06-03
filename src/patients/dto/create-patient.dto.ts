@@ -1,32 +1,37 @@
-import { IsString, IsDate, IsEnum, IsOptional } from 'class-validator';
+import { IsString, IsDate, IsEnum, IsOptional, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
+import { Gender } from '@prisma/client';
 
 export class CreatePatientDto {
-  @IsString()
-  firstName: string;
-
-  @IsString()
-  lastName: string;
-
   @Type(() => Date)
   @IsDate()
   dateOfBirth: Date;
 
   @IsString()
-  @IsEnum(['MALE', 'FEMALE', 'OTHER'])
-  gender: string;
-
-  @IsString()
-  address: string;
-
-  @IsString()
-  phoneNumber: string;
-
-  @IsString()
   @IsOptional()
-  medicalHistory?: string;
+  address?: string;
 
   @IsString()
   @IsOptional()
   insuranceInfo?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allergies?: string[];
+
+  @IsString()
+  @IsOptional()
+  bloodType?: string;
+
+  @IsString()
+  @IsOptional()
+  emergencyContactName?: string;
+
+  @IsString()
+  @IsOptional()
+  emergencyContactPhone?: string;
+
+  @IsEnum(Gender)
+  gender: Gender;
 } 

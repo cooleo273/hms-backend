@@ -32,7 +32,6 @@ export class InvoicesController {
   @Roles(UserRole.ADMIN, UserRole.DOCTOR, UserRole.PHARMACIST, UserRole.NURSE)
   findAll(
     @Query('patientId') patientId?: string,
-    @Query('doctorId') doctorId?: string,
     @Query('status') status?: InvoiceStatus,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -41,7 +40,6 @@ export class InvoicesController {
   ) {
     return this.invoicesService.findAll(
       patientId,
-      doctorId,
       status,
       startDate ? new Date(startDate) : undefined,
       endDate ? new Date(endDate) : undefined,

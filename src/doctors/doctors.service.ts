@@ -52,8 +52,8 @@ export class DoctorsService {
 
     if (query?.search) {
       where.OR = [
-        { firstName: { contains: query.search, mode: 'insensitive' } },
-        { lastName: { contains: query.search, mode: 'insensitive' } },
+        { user: { firstName: { contains: query.search, mode: 'insensitive' } } },
+        { user: { lastName: { contains: query.search, mode: 'insensitive' } } },
         { specialization: { contains: query.search, mode: 'insensitive' } },
       ];
     }
@@ -66,6 +66,8 @@ export class DoctorsService {
           select: {
             email: true,
             role: true,
+            firstName: true,
+            lastName: true,
           },
         },
       },
@@ -81,14 +83,20 @@ export class DoctorsService {
           select: {
             email: true,
             role: true,
+            firstName: true,
+            lastName: true,
           },
         },
         appointments: {
           include: {
             patient: {
-              select: {
-                firstName: true,
-                lastName: true,
+              include: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
               },
             },
           },
@@ -112,6 +120,8 @@ export class DoctorsService {
           select: {
             email: true,
             role: true,
+            firstName: true,
+            lastName: true,
           },
         },
       },
@@ -135,6 +145,8 @@ export class DoctorsService {
             select: {
               email: true,
               role: true,
+              firstName: true,
+              lastName: true,
             },
           },
         },
@@ -161,10 +173,14 @@ export class DoctorsService {
         appointments: {
           include: {
             patient: {
-              select: {
-                firstName: true,
-                lastName: true,
-                phoneNumber: true,
+              include: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    phoneNumber: true,
+                  },
+                },
               },
             },
           },
@@ -201,10 +217,14 @@ export class DoctorsService {
           },
           include: {
             patient: {
-              select: {
-                firstName: true,
-                lastName: true,
-                phoneNumber: true,
+              include: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    phoneNumber: true,
+                  },
+                },
               },
             },
           },
@@ -252,20 +272,13 @@ export class DoctorsService {
     endTime.setHours(17, 0, 0, 0); // End at 5 PM
 
     while (startTime < endTime) {
-      const slotTime = new Date(startTime);
-      const isBooked = doctor.appointments.some(
-        (appointment) =>
-          new Date(appointment.dateTime).getTime() === slotTime.getTime(),
-      );
-
-      if (!isBooked) {
-        timeSlots.push(new Date(slotTime));
-      }
-
+      timeSlots.push(new Date(startTime));
       startTime.setMinutes(startTime.getMinutes() + 30);
     }
 
-    return timeSlots;
+    // Filter out booked time slots
+    const bookedSlots = doctor.appointments.map((appointment) => appointment.dateTime);
+    return timeSlots.filter((slot) => !bookedSlots.some((booked) => booked.getTime() === slot.getTime()));
   }
 
   async getDoctorStats(id: string) {
@@ -273,12 +286,20 @@ export class DoctorsService {
       where: { id },
       include: {
         appointments: {
-          where: {
-            dateTime: {
-              gte: new Date(new Date().setDate(new Date().getDate() - 30)), // Last 30 days
+          include: {
+            patient: {
+              include: {
+                user: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
             },
           },
         },
+        medicalRecords: true,
       },
     });
 
@@ -293,12 +314,16 @@ export class DoctorsService {
     const cancelledAppointments = doctor.appointments.filter(
       (appointment) => appointment.status === 'CANCELLED',
     ).length;
+    const totalPatients = new Set(doctor.appointments.map((appointment) => appointment.patientId)).size;
+    const totalMedicalRecords = doctor.medicalRecords.length;
 
     return {
       totalAppointments,
       completedAppointments,
       cancelledAppointments,
-      completionRate: totalAppointments > 0 ? (completedAppointments / totalAppointments) * 100 : 0,
+      totalPatients,
+      totalMedicalRecords,
+      appointments: doctor.appointments,
     };
   }
 } 

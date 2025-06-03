@@ -1,42 +1,41 @@
-import { IsString, IsOptional, IsDate, IsArray } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
+import { DispenseStatus } from '@prisma/client';
 
 export class CreatePrescriptionDto {
+  @IsString()
+  medicalRecordId: string;
+
   @IsString()
   patientId: string;
 
   @IsString()
-  doctorId: string;
+  prescribedById: string;
 
-  @IsArray()
-  @IsString({ each: true })
-  drugIds: string[];
+  @IsString()
+  medicationName: string;
+
+  @IsString()
+  dosage: string;
 
   @IsString()
   @IsOptional()
-  dosage?: string;
+  form?: string;
 
   @IsString()
   @IsOptional()
-  frequency?: string;
+  route?: string;
 
   @IsString()
-  @IsOptional()
-  duration?: string;
+  frequency: string;
+
+  @IsString()
+  duration: string;
 
   @IsString()
   @IsOptional()
   instructions?: string;
 
-  @IsDate()
-  @Type(() => Date)
-  prescriptionDate: Date;
-
-  @IsString()
+  @IsEnum(DispenseStatus)
   @IsOptional()
-  status?: 'ACTIVE' | 'FILLED' | 'CANCELLED';
-
-  @IsString()
-  @IsOptional()
-  notes?: string;
+  dispenseStatus?: DispenseStatus;
 } 

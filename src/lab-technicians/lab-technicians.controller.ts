@@ -29,17 +29,17 @@ export class LabTechniciansController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.DOCTOR)
+  @Roles(UserRole.ADMIN, UserRole.LAB_TECHNICIAN)
   findAll(
     @Query('search') search?: string,
-    @Query('department') department?: string,
+    @Query('departmentId') departmentId?: string,
     @Query('specialization') specialization?: string,
-    @Query('sortBy') sortBy?: 'firstName' | 'lastName' | 'department',
+    @Query('sortBy') sortBy?: 'firstName' | 'lastName' | 'specialization',
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ) {
     return this.labTechniciansService.findAll(
       search,
-      department,
+      departmentId,
       specialization,
       sortBy,
       sortOrder,
@@ -53,7 +53,7 @@ export class LabTechniciansController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.DOCTOR)
+  @Roles(UserRole.ADMIN, UserRole.LAB_TECHNICIAN)
   findOne(@Param('id') id: string) {
     return this.labTechniciansService.findOne(id);
   }
@@ -74,7 +74,10 @@ export class LabTechniciansController {
 
   @Patch(':id')
   @Roles(UserRole.ADMIN)
-  update(@Param('id') id: string, @Body() updateLabTechnicianDto: UpdateLabTechnicianDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateLabTechnicianDto: UpdateLabTechnicianDto,
+  ) {
     return this.labTechniciansService.update(id, updateLabTechnicianDto);
   }
 
@@ -82,5 +85,11 @@ export class LabTechniciansController {
   @Roles(UserRole.ADMIN)
   remove(@Param('id') id: string) {
     return this.labTechniciansService.remove(id);
+  }
+
+  @Get('department/:departmentId')
+  @Roles(UserRole.ADMIN, UserRole.LAB_TECHNICIAN)
+  getDepartmentTechnicians(@Param('departmentId') departmentId: string) {
+    return this.labTechniciansService.findAll(undefined, departmentId);
   }
 } 

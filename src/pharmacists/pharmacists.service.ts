@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePharmacistDto } from './dto/create-pharmacist.dto';
 import { UpdatePharmacistDto } from './dto/update-pharmacist.dto';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class PharmacistsService {
@@ -12,29 +13,26 @@ export class PharmacistsService {
     const user = await this.prisma.user.create({
       data: {
         email: createPharmacistDto.email,
-        role: 'PHARMACIST',
-        profile: {
-          create: {
-            firstName: createPharmacistDto.firstName,
-            lastName: createPharmacistDto.lastName,
-            phoneNumber: createPharmacistDto.phoneNumber,
-          },
-        },
+        password: createPharmacistDto.password,
+        role: UserRole.PHARMACIST,
+        firstName: createPharmacistDto.firstName,
+        lastName: createPharmacistDto.lastName,
+        phoneNumber: createPharmacistDto.phoneNumber,
       },
     });
 
     // Create pharmacist record
     return this.prisma.pharmacist.create({
       data: {
-        ...createPharmacistDto,
+        licenseNumber: createPharmacistDto.licenseNumber,
+        specialization: createPharmacistDto.specialization,
+        qualifications: createPharmacistDto.qualifications,
+        departmentId: createPharmacistDto.departmentId,
         userId: user.id,
       },
       include: {
-        user: {
-          include: {
-            profile: true,
-          },
-        },
+        user: true,
+        department: true,
       },
     });
   }
@@ -45,30 +43,49 @@ export class PharmacistsService {
     sortBy?: 'firstName' | 'lastName' | 'specialization',
     sortOrder?: 'asc' | 'desc',
   ) {
-    const where = {
-      OR: search
-        ? [
-            { firstName: { contains: search, mode: 'insensitive' } },
-            { lastName: { contains: search, mode: 'insensitive' } },
-            { email: { contains: search, mode: 'insensitive' } },
-          ]
-        : undefined,
+    const where: any = {
       specialization: specialization || undefined,
     };
 
-    const orderBy = sortBy
+    if (search) {
+      where.OR = [
+        {
+          user: {
+            firstName: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+        },
+        {
+          user: {
+            lastName: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+        },
+        {
+          user: {
+            email: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+        },
+      ];
+    }
+
+    const orderBy: any = sortBy
       ? { [sortBy]: sortOrder || 'asc' }
-      : { firstName: 'asc' };
+      : { user: { firstName: 'asc' } };
 
     return this.prisma.pharmacist.findMany({
       where,
       orderBy,
       include: {
-        user: {
-          include: {
-            profile: true,
-          },
-        },
+        user: true,
+        department: true,
       },
     });
   }
@@ -77,11 +94,8 @@ export class PharmacistsService {
     const pharmacist = await this.prisma.pharmacist.findUnique({
       where: { id },
       include: {
-        user: {
-          include: {
-            profile: true,
-          },
-        },
+        user: true,
+        department: true,
       },
     });
 
@@ -109,8 +123,8 @@ export class PharmacistsService {
         updatePharmacistDto.lastName ||
         updatePharmacistDto.phoneNumber
       ) {
-        await this.prisma.userProfile.update({
-          where: { userId: pharmacist.userId },
+        await this.prisma.user.update({
+          where: { id: pharmacist.userId },
           data: {
             firstName: updatePharmacistDto.firstName,
             lastName: updatePharmacistDto.lastName,
@@ -122,13 +136,15 @@ export class PharmacistsService {
       // Update pharmacist record
       return this.prisma.pharmacist.update({
         where: { id },
-        data: updatePharmacistDto,
+        data: {
+          licenseNumber: updatePharmacistDto.licenseNumber,
+          specialization: updatePharmacistDto.specialization,
+          qualifications: updatePharmacistDto.qualifications,
+          departmentId: updatePharmacistDto.departmentId,
+        },
         include: {
-          user: {
-            include: {
-              profile: true,
-            },
-          },
+          user: true,
+          department: true,
         },
       });
     } catch (error) {
@@ -190,28 +206,32 @@ export class PharmacistsService {
     }
 
     // Get pharmacist's dispensing records within date range
-    const dispensingRecords = await this.prisma.dispensingRecord.findMany({
+    const dispensingRecords = await this.prisma.dispensedDrug.findMany({
       where: {
-        pharmacistId,
-        createdAt: {
+        dispensedById: pharmacist.userId,
+        dispenseDate: {
           gte: startDate,
           lte: endDate,
         },
       },
       include: {
+        drug: true,
         prescription: {
           include: {
-            patient: true,
-            doctor: true,
+            medicalRecord: {
+              include: {
+                patient: {
+                  include: {
+                    user: true,
+                  },
+                },
+              },
+            },
           },
         },
-        drug: true,
       },
     });
 
-    return {
-      pharmacist,
-      dispensingRecords,
-    };
+    return dispensingRecords;
   }
 } 

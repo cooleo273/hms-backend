@@ -6,10 +6,10 @@ export class CreatePaymentDto {
   invoiceId: string;
 
   @IsNumber()
-  amount: number;
+  amountPaid: number;
 
   @IsEnum(PaymentMethod)
-  method: PaymentMethod;
+  paymentMethod: PaymentMethod;
 
   @IsEnum(PaymentStatus)
   @IsOptional()
@@ -24,22 +24,5 @@ export class CreatePaymentDto {
   notes?: string;
 
   @IsString()
-  @IsOptional()
-  cardNumber?: string;
-
-  @IsString()
-  @IsOptional()
-  cardHolderName?: string;
-
-  @IsString()
-  @IsOptional()
-  bankName?: string;
-
-  @IsString()
-  @IsOptional()
-  bankAccountNumber?: string;
-
-  @IsString()
-  @IsOptional()
-  bankRoutingNumber?: string;
+  receivedById: string;
 } 

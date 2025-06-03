@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEnum, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsArray, ValidateNested, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 import { TestOrderStatus } from '@prisma/client';
 
@@ -12,8 +12,22 @@ export class TestItemDto {
 }
 
 export class CreateLabTestOrderDto {
-  @IsString()
+  @IsUUID()
   patientId: string;
+
+  @IsUUID()
+  @IsOptional()
+  medicalRecordId?: string;
+
+  @IsUUID()
+  orderedById: string;
+
+  @IsUUID()
+  testCatalogId: string;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
 
   @IsString()
   doctorId: string;

@@ -29,19 +29,22 @@ export class LabTestOrdersController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN, UserRole.NURSE)
+  @Roles(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN)
   findAll(
     @Query('patientId') patientId?: string,
-    @Query('doctorId') doctorId?: string,
+    @Query('testCatalogId') testCatalogId?: string,
     @Query('status') status?: TestOrderStatus,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('sortBy') sortBy?: 'createdAt' | 'status' | 'priority',
+    @Query('sortBy') sortBy?: 'orderDate' | 'resultDate',
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ) {
     return this.labTestOrdersService.findAll(
       patientId,
-      doctorId,
+      undefined, // medicalRecordId
+      undefined, // orderedById
+      undefined, // processedById
+      testCatalogId,
       status,
       startDate ? new Date(startDate) : undefined,
       endDate ? new Date(endDate) : undefined,
@@ -51,13 +54,13 @@ export class LabTestOrdersController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN, UserRole.NURSE)
+  @Roles(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN)
   findOne(@Param('id') id: string) {
     return this.labTestOrdersService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN)
+  @Roles(UserRole.ADMIN, UserRole.DOCTOR)
   update(
     @Param('id') id: string,
     @Body() updateLabTestOrderDto: UpdateLabTestOrderDto,
@@ -77,18 +80,18 @@ export class LabTestOrdersController {
     @Param('id') id: string,
     @Body('status') status: TestOrderStatus,
   ) {
-    return this.labTestOrdersService.updateStatus(id, status);
+    return this.labTestOrdersService.update(id, { status });
   }
 
   @Get('stats/overview')
-  @Roles(UserRole.ADMIN, UserRole.LAB_TECHNICIAN)
-  getOrderStats() {
-    return this.labTestOrdersService.getOrderStats();
+  @Roles(UserRole.ADMIN)
+  getTestOrderStats() {
+    return this.labTestOrdersService.getTestOrderStats();
   }
 
   @Get('patient/:patientId')
-  @Roles(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN, UserRole.NURSE)
-  getPatientOrders(@Param('patientId') patientId: string) {
-    return this.labTestOrdersService.getPatientOrders(patientId);
+  @Roles(UserRole.ADMIN, UserRole.DOCTOR, UserRole.LAB_TECHNICIAN)
+  getPatientTestOrders(@Param('patientId') patientId: string) {
+    return this.labTestOrdersService.getPatientTestOrders(patientId);
   }
 } 

@@ -31,15 +31,15 @@ export class DispensedDrugsController {
   @Get()
   @Roles(UserRole.ADMIN, UserRole.PHARMACIST)
   findAll(
-    @Query('prescriptionId') prescriptionId?: string,
+    @Query('patientId') patientId?: string,
     @Query('drugId') drugId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('sortBy') sortBy?: 'dispensedAt' | 'quantity',
+    @Query('sortBy') sortBy?: 'quantityDispensed' | 'dispenseDate',
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ) {
     return this.dispensedDrugsService.findAll(
-      prescriptionId,
+      patientId,
       drugId,
       startDate ? new Date(startDate) : undefined,
       endDate ? new Date(endDate) : undefined,
@@ -86,4 +86,10 @@ export class DispensedDrugsController {
   getPatientDispensedDrugs(@Param('patientId') patientId: string) {
     return this.dispensedDrugsService.getPatientDispensedDrugs(patientId);
   }
+
+  // @Get('drug/:drugId')
+  // @Roles(UserRole.ADMIN, UserRole.PHARMACIST)
+  // getDrugDispensingHistory(@Param('drugId') drugId: string) {
+  //   return this.dispensedDrugsService.getDrugDispensingHistory(drugId);
+  // }
 } 

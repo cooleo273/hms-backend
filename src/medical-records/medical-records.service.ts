@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMedicalRecordDto } from './dto/create-medical-record.dto';
 import { UpdateMedicalRecordDto } from './dto/update-medical-record.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class MedicalRecordsService {
@@ -32,10 +33,23 @@ export class MedicalRecordsService {
 
     // Create medical record
     return this.prisma.medicalRecord.create({
-      data: createMedicalRecordDto,
+      data: {
+        ...createMedicalRecordDto,
+        diagnosis: createMedicalRecordDto.diagnosis || [],
+        allergiesAtVisit: createMedicalRecordDto.allergiesAtVisit || [],
+      },
       include: {
-        patient: true,
-        doctor: true,
+        patient: {
+          include: {
+            user: true,
+          },
+        },
+        doctor: {
+          include: {
+            user: true,
+          },
+        },
+        recordedBy: true,
       },
     });
   }
@@ -45,32 +59,39 @@ export class MedicalRecordsService {
     doctorId?: string,
     startDate?: Date,
     endDate?: Date,
-    status?: 'ACTIVE' | 'ARCHIVED' | 'DELETED',
     sortBy?: 'visitDate' | 'createdAt',
-    sortOrder?: 'asc' | 'desc',
+    sortOrder?: Prisma.SortOrder,
   ) {
     const where = {
-      patientId: patientId || undefined,
-      doctorId: doctorId || undefined,
-      visitDate: startDate && endDate
-        ? {
-            gte: startDate,
-            lte: endDate,
-          }
-        : undefined,
-      status: status || undefined,
+      ...(patientId && { patientId }),
+      ...(doctorId && { doctorId }),
+      ...(startDate && endDate && {
+        visitDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      }),
     };
 
-    const orderBy = sortBy
-      ? { [sortBy]: sortOrder || 'desc' }
-      : { visitDate: 'desc' };
+    const orderBy: Prisma.MedicalRecordOrderByWithRelationInput = sortBy
+      ? { [sortBy]: sortOrder || Prisma.SortOrder.desc }
+      : { visitDate: Prisma.SortOrder.desc };
 
     return this.prisma.medicalRecord.findMany({
       where,
       orderBy,
       include: {
-        patient: true,
-        doctor: true,
+        patient: {
+          include: {
+            user: true,
+          },
+        },
+        doctor: {
+          include: {
+            user: true,
+          },
+        },
+        recordedBy: true,
       },
     });
   }
@@ -79,8 +100,17 @@ export class MedicalRecordsService {
     const medicalRecord = await this.prisma.medicalRecord.findUnique({
       where: { id },
       include: {
-        patient: true,
-        doctor: true,
+        patient: {
+          include: {
+            user: true,
+          },
+        },
+        doctor: {
+          include: {
+            user: true,
+          },
+        },
+        recordedBy: true,
       },
     });
 
@@ -129,10 +159,23 @@ export class MedicalRecordsService {
 
       return this.prisma.medicalRecord.update({
         where: { id },
-        data: updateMedicalRecordDto,
+        data: {
+          ...updateMedicalRecordDto,
+          diagnosis: updateMedicalRecordDto.diagnosis || undefined,
+          allergiesAtVisit: updateMedicalRecordDto.allergiesAtVisit || undefined,
+        },
         include: {
-          patient: true,
-          doctor: true,
+          patient: {
+            include: {
+              user: true,
+            },
+          },
+          doctor: {
+            include: {
+              user: true,
+            },
+          },
+          recordedBy: true,
         },
       });
     } catch (error) {
@@ -150,13 +193,9 @@ export class MedicalRecordsService {
         throw new NotFoundException(`Medical Record with ID ${id} not found`);
       }
 
-      // Soft delete by updating status
-      await this.prisma.medicalRecord.update({
+      return this.prisma.medicalRecord.delete({
         where: { id },
-        data: { status: 'DELETED' },
       });
-
-      return { message: 'Medical Record deleted successfully' };
     } catch (error) {
       throw new NotFoundException(`Medical Record with ID ${id} not found`);
     }
@@ -165,6 +204,9 @@ export class MedicalRecordsService {
   async getPatientMedicalHistory(patientId: string) {
     const patient = await this.prisma.patient.findUnique({
       where: { id: patientId },
+      include: {
+        user: true,
+      },
     });
 
     if (!patient) {
@@ -174,13 +216,17 @@ export class MedicalRecordsService {
     const medicalRecords = await this.prisma.medicalRecord.findMany({
       where: {
         patientId,
-        status: 'ACTIVE',
       },
       orderBy: {
         visitDate: 'desc',
       },
       include: {
-        doctor: true,
+        doctor: {
+          include: {
+            user: true,
+          },
+        },
+        recordedBy: true,
       },
     });
 
@@ -193,6 +239,9 @@ export class MedicalRecordsService {
   async getDoctorMedicalRecords(doctorId: string) {
     const doctor = await this.prisma.doctor.findUnique({
       where: { id: doctorId },
+      include: {
+        user: true,
+      },
     });
 
     if (!doctor) {
@@ -202,13 +251,17 @@ export class MedicalRecordsService {
     const medicalRecords = await this.prisma.medicalRecord.findMany({
       where: {
         doctorId,
-        status: 'ACTIVE',
       },
       orderBy: {
         visitDate: 'desc',
       },
       include: {
-        patient: true,
+        patient: {
+          include: {
+            user: true,
+          },
+        },
+        recordedBy: true,
       },
     });
 
@@ -220,12 +273,6 @@ export class MedicalRecordsService {
 
   async getMedicalRecordStats() {
     const totalRecords = await this.prisma.medicalRecord.count();
-    const activeRecords = await this.prisma.medicalRecord.count({
-      where: { status: 'ACTIVE' },
-    });
-    const archivedRecords = await this.prisma.medicalRecord.count({
-      where: { status: 'ARCHIVED' },
-    });
 
     const recordsByMonth = await this.prisma.medicalRecord.groupBy({
       by: ['visitDate'],
@@ -237,8 +284,6 @@ export class MedicalRecordsService {
 
     return {
       totalRecords,
-      activeRecords,
-      archivedRecords,
       recordsByMonth,
     };
   }

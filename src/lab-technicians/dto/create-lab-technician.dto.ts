@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsDate } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsDate, IsArray, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateLabTechnicianDto {
@@ -12,11 +12,13 @@ export class CreateLabTechnicianDto {
   email: string;
 
   @IsString()
+  password: string;
+
+  @IsString()
   phoneNumber: string;
 
   @IsString()
-  @IsOptional()
-  licenseNumber?: string;
+  licenseNumber: string;
 
   @IsDate()
   @Type(() => Date)
@@ -27,9 +29,13 @@ export class CreateLabTechnicianDto {
   @IsOptional()
   specialization?: string;
 
-  @IsString()
+  @IsArray()
+  @IsString({ each: true })
+  qualifications: string[];
+
+  @IsUUID()
   @IsOptional()
-  department?: string;
+  departmentId?: string;
 
   @IsString()
   @IsOptional()

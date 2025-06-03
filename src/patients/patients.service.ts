@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
-import { Patient } from '@prisma/client';
+import { Patient, Gender } from '@prisma/client';
 
 @Injectable()
 export class PatientsService {
@@ -10,8 +10,18 @@ export class PatientsService {
   async create(userId: string, createPatientDto: CreatePatientDto): Promise<Patient> {
     return this.prisma.patient.create({
       data: {
-        ...createPatientDto,
         userId,
+        dateOfBirth: createPatientDto.dateOfBirth,
+        address: createPatientDto.address,
+        insuranceInfo: createPatientDto.insuranceInfo,
+        allergies: createPatientDto.allergies || [],
+        bloodType: createPatientDto.bloodType,
+        emergencyContactName: createPatientDto.emergencyContactName,
+        emergencyContactPhone: createPatientDto.emergencyContactPhone,
+        gender: createPatientDto.gender,
+      },
+      include: {
+        user: true,
       },
     });
   }
@@ -19,12 +29,7 @@ export class PatientsService {
   async findAll(): Promise<Patient[]> {
     return this.prisma.patient.findMany({
       include: {
-        user: {
-          select: {
-            email: true,
-            role: true,
-          },
-        },
+        user: true,
       },
     });
   }
@@ -33,19 +38,12 @@ export class PatientsService {
     const patient = await this.prisma.patient.findUnique({
       where: { id },
       include: {
-        user: {
-          select: {
-            email: true,
-            role: true,
-          },
-        },
+        user: true,
         appointments: {
           include: {
             doctor: {
-              select: {
-                firstName: true,
-                lastName: true,
-                specialization: true,
+              include: {
+                user: true,
               },
             },
           },
@@ -65,12 +63,7 @@ export class PatientsService {
     const patient = await this.prisma.patient.findUnique({
       where: { userId },
       include: {
-        user: {
-          select: {
-            email: true,
-            role: true,
-          },
-        },
+        user: true,
       },
     });
 
@@ -85,7 +78,19 @@ export class PatientsService {
     try {
       return await this.prisma.patient.update({
         where: { id },
-        data: updatePatientDto,
+        data: {
+          dateOfBirth: updatePatientDto.dateOfBirth,
+          address: updatePatientDto.address,
+          insuranceInfo: updatePatientDto.insuranceInfo,
+          allergies: updatePatientDto.allergies,
+          bloodType: updatePatientDto.bloodType,
+          emergencyContactName: updatePatientDto.emergencyContactName,
+          emergencyContactPhone: updatePatientDto.emergencyContactPhone,
+          gender: updatePatientDto.gender,
+        },
+        include: {
+          user: true,
+        },
       });
     } catch (error) {
       throw new NotFoundException(`Patient with ID ${id} not found`);
@@ -109,10 +114,8 @@ export class PatientsService {
         appointments: {
           include: {
             doctor: {
-              select: {
-                firstName: true,
-                lastName: true,
-                specialization: true,
+              include: {
+                user: true,
               },
             },
           },

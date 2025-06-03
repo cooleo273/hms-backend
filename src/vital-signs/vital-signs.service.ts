@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVitalSignsDto } from './dto/create-vital-signs.dto';
 import { UpdateVitalSignsDto } from './dto/update-vital-signs.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class VitalSignsService {
@@ -20,8 +21,18 @@ export class VitalSignsService {
     }
 
     // Create vital signs record
-    return this.prisma.vitalSigns.create({
-      data: createVitalSignsDto,
+    return this.prisma.vitalSign.create({
+      data: {
+        patientId: createVitalSignsDto.patientId,
+        recordedById: createVitalSignsDto.recordedBy,
+        temperature: createVitalSignsDto.temperature,
+        bloodPressureSystolic: createVitalSignsDto.bloodPressureSystolic,
+        bloodPressureDiastolic: createVitalSignsDto.bloodPressureDiastolic,
+        heartRate: createVitalSignsDto.heartRate,
+        respiratoryRate: createVitalSignsDto.respiratoryRate,
+        oxygenSaturation: createVitalSignsDto.oxygenSaturation,
+        timestamp: createVitalSignsDto.recordedAt,
+      },
       include: {
         patient: true,
         recordedBy: true,
@@ -33,13 +44,13 @@ export class VitalSignsService {
     patientId?: string,
     startDate?: Date,
     endDate?: Date,
-    sortBy?: 'recordedAt' | 'temperature' | 'heartRate',
+    sortBy?: 'timestamp' | 'temperature' | 'heartRate',
     sortOrder?: 'asc' | 'desc',
   ) {
     const where = {
       ...(patientId && { patientId }),
       ...(startDate && endDate && {
-        recordedAt: {
+        timestamp: {
           gte: startDate,
           lte: endDate,
         },
@@ -48,7 +59,7 @@ export class VitalSignsService {
 
     const orderBy = sortBy ? { [sortBy]: sortOrder || 'desc' } : undefined;
 
-    return this.prisma.vitalSigns.findMany({
+    return this.prisma.vitalSign.findMany({
       where,
       orderBy,
       include: {
@@ -59,7 +70,7 @@ export class VitalSignsService {
   }
 
   async findOne(id: string) {
-    const vitalSigns = await this.prisma.vitalSigns.findUnique({
+    const vitalSigns = await this.prisma.vitalSign.findUnique({
       where: { id },
       include: {
         patient: true,
@@ -76,9 +87,17 @@ export class VitalSignsService {
 
   async update(id: string, updateVitalSignsDto: UpdateVitalSignsDto) {
     try {
-      return this.prisma.vitalSigns.update({
+      return this.prisma.vitalSign.update({
         where: { id },
-        data: updateVitalSignsDto,
+        data: {
+          temperature: updateVitalSignsDto.temperature,
+          bloodPressureSystolic: updateVitalSignsDto.bloodPressureSystolic,
+          bloodPressureDiastolic: updateVitalSignsDto.bloodPressureDiastolic,
+          heartRate: updateVitalSignsDto.heartRate,
+          respiratoryRate: updateVitalSignsDto.respiratoryRate,
+          oxygenSaturation: updateVitalSignsDto.oxygenSaturation,
+          timestamp: updateVitalSignsDto.recordedAt,
+        },
         include: {
           patient: true,
           recordedBy: true,
@@ -91,7 +110,7 @@ export class VitalSignsService {
 
   async remove(id: string) {
     try {
-      return this.prisma.vitalSigns.delete({
+      return this.prisma.vitalSign.delete({
         where: { id },
       });
     } catch (error) {
@@ -100,9 +119,9 @@ export class VitalSignsService {
   }
 
   async getVitalSignsStats(patientId: string) {
-    const vitalSigns = await this.prisma.vitalSigns.findMany({
+    const vitalSigns = await this.prisma.vitalSign.findMany({
       where: { patientId },
-      orderBy: { recordedAt: 'desc' },
+      orderBy: { timestamp: 'desc' },
       take: 10,
     });
 
@@ -115,39 +134,37 @@ export class VitalSignsService {
 
     const latest = vitalSigns[0];
     const averages = {
-      temperature: this.calculateAverage(vitalSigns.map(vs => vs.temperature)),
-      heartRate: this.calculateAverage(vitalSigns.map(vs => vs.heartRate)),
+      temperature: this.calculateAverage(vitalSigns.map(vs => vs.temperature).filter((v): v is number => v !== null)),
+      heartRate: this.calculateAverage(vitalSigns.map(vs => vs.heartRate).filter((v): v is number => v !== null)),
       bloodPressureSystolic: this.calculateAverage(
-        vitalSigns.map(vs => vs.bloodPressureSystolic),
+        vitalSigns.map(vs => vs.bloodPressureSystolic).filter((v): v is number => v !== null),
       ),
       bloodPressureDiastolic: this.calculateAverage(
-        vitalSigns.map(vs => vs.bloodPressureDiastolic),
+        vitalSigns.map(vs => vs.bloodPressureDiastolic).filter((v): v is number => v !== null),
       ),
       respiratoryRate: this.calculateAverage(
-        vitalSigns.map(vs => vs.respiratoryRate),
+        vitalSigns.map(vs => vs.respiratoryRate).filter((v): v is number => v !== null),
       ),
       oxygenSaturation: this.calculateAverage(
-        vitalSigns.map(vs => vs.oxygenSaturation),
+        vitalSigns.map(vs => vs.oxygenSaturation).filter((v): v is number => v !== null),
       ),
-      painLevel: this.calculateAverage(vitalSigns.map(vs => vs.painLevel || 0)),
     };
 
     const trends = {
-      temperature: this.calculateTrend(vitalSigns.map(vs => vs.temperature)),
-      heartRate: this.calculateTrend(vitalSigns.map(vs => vs.heartRate)),
+      temperature: this.calculateTrend(vitalSigns.map(vs => vs.temperature).filter((v): v is number => v !== null)),
+      heartRate: this.calculateTrend(vitalSigns.map(vs => vs.heartRate).filter((v): v is number => v !== null)),
       bloodPressureSystolic: this.calculateTrend(
-        vitalSigns.map(vs => vs.bloodPressureSystolic),
+        vitalSigns.map(vs => vs.bloodPressureSystolic).filter((v): v is number => v !== null),
       ),
       bloodPressureDiastolic: this.calculateTrend(
-        vitalSigns.map(vs => vs.bloodPressureDiastolic),
+        vitalSigns.map(vs => vs.bloodPressureDiastolic).filter((v): v is number => v !== null),
       ),
       respiratoryRate: this.calculateTrend(
-        vitalSigns.map(vs => vs.respiratoryRate),
+        vitalSigns.map(vs => vs.respiratoryRate).filter((v): v is number => v !== null),
       ),
       oxygenSaturation: this.calculateTrend(
-        vitalSigns.map(vs => vs.oxygenSaturation),
+        vitalSigns.map(vs => vs.oxygenSaturation).filter((v): v is number => v !== null),
       ),
-      painLevel: this.calculateTrend(vitalSigns.map(vs => vs.painLevel || 0)),
     };
 
     return {
@@ -161,9 +178,9 @@ export class VitalSignsService {
   }
 
   async getPatientVitalSigns(patientId: string) {
-    return this.prisma.vitalSigns.findMany({
+    return this.prisma.vitalSign.findMany({
       where: { patientId },
-      orderBy: { recordedAt: 'desc' },
+      orderBy: { timestamp: 'desc' },
       include: {
         recordedBy: true,
       },
@@ -171,6 +188,7 @@ export class VitalSignsService {
   }
 
   private calculateAverage(values: number[]): number {
+    if (values.length === 0) return 0;
     return values.reduce((sum, val) => sum + val, 0) / values.length;
   }
 

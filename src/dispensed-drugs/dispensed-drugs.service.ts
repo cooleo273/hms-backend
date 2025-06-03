@@ -12,7 +12,8 @@ export class DispensedDrugsService {
     const prescription = await this.prisma.prescription.findUnique({
       where: { id: createDispensedDrugDto.prescriptionId },
       include: {
-        prescriptionItems: true,
+        patient: true,
+        prescribedBy: true,
       },
     });
 
@@ -24,42 +25,42 @@ export class DispensedDrugsService {
 
     // Verify drug batch exists and has sufficient quantity
     const drugBatch = await this.prisma.drugBatch.findUnique({
-      where: { id: createDispensedDrugDto.drugBatchId },
+      where: { id: createDispensedDrugDto.batchId },
     });
 
     if (!drugBatch) {
       throw new NotFoundException(
-        `Drug batch with ID ${createDispensedDrugDto.drugBatchId} not found`,
+        `Drug batch with ID ${createDispensedDrugDto.batchId} not found`,
       );
     }
 
-    if (drugBatch.remainingQuantity < createDispensedDrugDto.quantity) {
+    if (drugBatch.quantity < createDispensedDrugDto.quantityDispensed) {
       throw new BadRequestException('Insufficient drug quantity in batch');
-    }
-
-    // Verify prescription item exists for this drug
-    const prescriptionItem = prescription.prescriptionItems.find(
-      item => item.drugId === drugBatch.drugId,
-    );
-
-    if (!prescriptionItem) {
-      throw new BadRequestException('Drug not prescribed in this prescription');
     }
 
     // Create dispensed drug record
     const dispensedDrug = await this.prisma.dispensedDrug.create({
       data: {
-        ...createDispensedDrugDto,
         drugId: drugBatch.drugId,
+        batchId: drugBatch.id,
+        prescriptionId: prescription.id,
+        patientId: prescription.patientId,
+        quantityDispensed: createDispensedDrugDto.quantityDispensed,
+        dispensedById: createDispensedDrugDto.dispensedById,
+        notes: createDispensedDrugDto.notes,
       },
       include: {
         prescription: {
           include: {
-            patient: true,
-            doctor: true,
+            patient: {
+              include: {
+                user: true,
+              },
+            },
+            prescribedBy: true,
           },
         },
-        drugBatch: {
+        batch: {
           include: {
             drug: true,
           },
@@ -72,7 +73,9 @@ export class DispensedDrugsService {
     await this.prisma.drugBatch.update({
       where: { id: drugBatch.id },
       data: {
-        remainingQuantity: drugBatch.remainingQuantity - createDispensedDrugDto.quantity,
+        quantity: {
+          decrement: createDispensedDrugDto.quantityDispensed,
+        },
       },
     });
 
@@ -84,14 +87,14 @@ export class DispensedDrugsService {
     drugId?: string,
     startDate?: Date,
     endDate?: Date,
-    sortBy?: 'dispensedAt' | 'quantity',
+    sortBy?: 'dispenseDate' | 'quantityDispensed',
     sortOrder?: 'asc' | 'desc',
   ) {
     const where = {
       ...(prescriptionId && { prescriptionId }),
       ...(drugId && { drugId }),
       ...(startDate && endDate && {
-        dispensedAt: {
+        dispenseDate: {
           gte: startDate,
           lte: endDate,
         },
@@ -106,11 +109,15 @@ export class DispensedDrugsService {
       include: {
         prescription: {
           include: {
-            patient: true,
-            doctor: true,
+            patient: {
+              include: {
+                user: true,
+              },
+            },
+            prescribedBy: true,
           },
         },
-        drugBatch: {
+        batch: {
           include: {
             drug: true,
           },
@@ -126,11 +133,15 @@ export class DispensedDrugsService {
       include: {
         prescription: {
           include: {
-            patient: true,
-            doctor: true,
+            patient: {
+              include: {
+                user: true,
+              },
+            },
+            prescribedBy: true,
           },
         },
-        drugBatch: {
+        batch: {
           include: {
             drug: true,
           },
@@ -150,15 +161,22 @@ export class DispensedDrugsService {
     try {
       const dispensedDrug = await this.prisma.dispensedDrug.update({
         where: { id },
-        data: updateDispensedDrugDto,
+        data: {
+          quantityDispensed: updateDispensedDrugDto.quantityDispensed,
+          notes: updateDispensedDrugDto.notes,
+        },
         include: {
           prescription: {
             include: {
-              patient: true,
-              doctor: true,
+              patient: {
+                include: {
+                  user: true,
+                },
+              },
+              prescribedBy: true,
             },
           },
-          drugBatch: {
+          batch: {
             include: {
               drug: true,
             },
@@ -168,21 +186,27 @@ export class DispensedDrugsService {
       });
 
       // If quantity is updated, adjust drug batch quantity
-      if (updateDispensedDrugDto.quantity) {
+      if (updateDispensedDrugDto.quantityDispensed) {
         const originalDispensedDrug = await this.prisma.dispensedDrug.findUnique({
           where: { id },
         });
 
-        const quantityDifference = updateDispensedDrugDto.quantity - originalDispensedDrug.quantity;
+        if (!originalDispensedDrug) {
+          throw new NotFoundException(`Dispensed drug with ID ${id} not found`);
+        }
 
-        await this.prisma.drugBatch.update({
-          where: { id: dispensedDrug.drugBatchId },
-          data: {
-            remainingQuantity: {
-              decrement: quantityDifference,
+        const quantityDifference = updateDispensedDrugDto.quantityDispensed - originalDispensedDrug.quantityDispensed;
+
+        if (originalDispensedDrug.batchId) {
+          await this.prisma.drugBatch.update({
+            where: { id: originalDispensedDrug.batchId },
+            data: {
+              quantity: {
+                decrement: quantityDifference,
+              },
             },
-          },
-        });
+          });
+        }
       }
 
       return dispensedDrug;
@@ -197,15 +221,21 @@ export class DispensedDrugsService {
         where: { id },
       });
 
+      if (!dispensedDrug) {
+        throw new NotFoundException(`Dispensed drug with ID ${id} not found`);
+      }
+
       // Restore drug batch quantity
-      await this.prisma.drugBatch.update({
-        where: { id: dispensedDrug.drugBatchId },
-        data: {
-          remainingQuantity: {
-            increment: dispensedDrug.quantity,
+      if (dispensedDrug.batchId) {
+        await this.prisma.drugBatch.update({
+          where: { id: dispensedDrug.batchId },
+          data: {
+            quantity: {
+              increment: dispensedDrug.quantityDispensed,
+            },
           },
-        },
-      });
+        });
+      }
 
       return this.prisma.dispensedDrug.delete({
         where: { id },
@@ -221,20 +251,24 @@ export class DispensedDrugsService {
       by: ['drugId'],
       _count: true,
       _sum: {
-        quantity: true,
+        quantityDispensed: true,
       },
     });
 
     const recentDispensed = await this.prisma.dispensedDrug.findMany({
       take: 5,
-      orderBy: { dispensedAt: 'desc' },
+      orderBy: { dispenseDate: 'desc' },
       include: {
         prescription: {
           include: {
-            patient: true,
+            patient: {
+              include: {
+                user: true,
+              },
+            },
           },
         },
-        drugBatch: {
+        batch: {
           include: {
             drug: true,
           },
@@ -251,8 +285,8 @@ export class DispensedDrugsService {
           });
           return {
             drug,
+            totalDispensed: stat._sum?.quantityDispensed || 0,
             count: stat._count,
-            totalQuantity: stat._sum.quantity,
           };
         }),
       ),
@@ -264,7 +298,7 @@ export class DispensedDrugsService {
     return this.prisma.dispensedDrug.findMany({
       where: { prescriptionId },
       include: {
-        drugBatch: {
+        batch: {
           include: {
             drug: true,
           },
@@ -276,18 +310,14 @@ export class DispensedDrugsService {
 
   async getPatientDispensedDrugs(patientId: string) {
     return this.prisma.dispensedDrug.findMany({
-      where: {
-        prescription: {
-          patientId,
-        },
-      },
+      where: { patientId },
       include: {
         prescription: {
           include: {
-            doctor: true,
+            prescribedBy: true,
           },
         },
-        drugBatch: {
+        batch: {
           include: {
             drug: true,
           },

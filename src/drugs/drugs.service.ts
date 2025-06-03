@@ -24,7 +24,7 @@ export class DrugsService {
     if (query?.search) {
       where.OR = [
         { name: { contains: query.search, mode: 'insensitive' } },
-        { description: { contains: query.search, mode: 'insensitive' } },
+        { genericName: { contains: query.search, mode: 'insensitive' } },
       ];
     }
 
@@ -33,7 +33,7 @@ export class DrugsService {
     }
 
     if (query?.inStock !== undefined) {
-      where.quantity = query.inStock ? { gt: 0 } : { equals: 0 };
+      where.stockQuantity = query.inStock ? { gt: 0 } : { equals: 0 };
     }
 
     return this.prisma.drug.findMany({
@@ -48,7 +48,7 @@ export class DrugsService {
     const drug = await this.prisma.drug.findUnique({
       where: { id },
       include: {
-        batches: {
+        drugBatches: {
           orderBy: {
             expiryDate: 'asc',
           },
@@ -88,7 +88,7 @@ export class DrugsService {
     const drug = await this.prisma.drug.findUnique({
       where: { id },
       include: {
-        batches: {
+        drugBatches: {
           where: expiringSoon
             ? {
                 expiryDate: {
@@ -107,23 +107,23 @@ export class DrugsService {
       throw new NotFoundException(`Drug with ID ${id} not found`);
     }
 
-    return drug.batches;
+    return drug.drugBatches;
   }
 
   async getInventoryStats() {
     const drugs = await this.prisma.drug.findMany({
       include: {
-        batches: true,
+        drugBatches: true,
       },
     });
 
     const totalDrugs = drugs.length;
-    const totalQuantity = drugs.reduce((acc, drug) => acc + drug.quantity, 0);
-    const lowStockDrugs = drugs.filter((drug) => drug.quantity <= drug.minimumQuantity).length;
-    const outOfStockDrugs = drugs.filter((drug) => drug.quantity === 0).length;
+    const totalQuantity = drugs.reduce((acc, drug) => acc + drug.stockQuantity, 0);
+    const lowStockDrugs = drugs.filter((drug) => drug.stockQuantity <= drug.reorderLevel).length;
+    const outOfStockDrugs = drugs.filter((drug) => drug.stockQuantity === 0).length;
 
     const expiringBatches = drugs.flatMap((drug) =>
-      drug.batches.filter(
+      drug.drugBatches.filter(
         (batch) =>
           batch.expiryDate <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
       ),
@@ -146,18 +146,18 @@ export class DrugsService {
       distinct: ['category'],
     });
 
-    return drugs.map((drug) => drug.category);
+    return drugs.map((drug) => drug.category).filter((category): category is string => category !== null);
   }
 
   async getLowStockDrugs(): Promise<Drug[]> {
     return this.prisma.drug.findMany({
       where: {
-        quantity: {
-          lte: this.prisma.drug.fields.minimumQuantity,
+        stockQuantity: {
+          lte: this.prisma.drug.fields.reorderLevel,
         },
       },
       orderBy: {
-        quantity: 'asc',
+        stockQuantity: 'asc',
       },
     });
   }
@@ -167,7 +167,7 @@ export class DrugsService {
 
     return this.prisma.drug.findMany({
       where: {
-        batches: {
+        drugBatches: {
           some: {
             expiryDate: {
               lte: thirtyDaysFromNow,
@@ -176,7 +176,7 @@ export class DrugsService {
         },
       },
       include: {
-        batches: {
+        drugBatches: {
           where: {
             expiryDate: {
               lte: thirtyDaysFromNow,

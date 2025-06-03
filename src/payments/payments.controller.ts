@@ -35,7 +35,7 @@ export class PaymentsController {
     @Query('status') status?: PaymentStatus,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('sortBy') sortBy?: 'createdAt' | 'amount' | 'status',
+    @Query('sortBy') sortBy?: 'createdAt' | 'amountPaid' | 'status',
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ) {
     return this.paymentsService.findAll(

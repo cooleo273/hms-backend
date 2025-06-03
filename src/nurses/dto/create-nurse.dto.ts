@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsDate } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateNurseDto {
@@ -12,6 +12,9 @@ export class CreateNurseDto {
   email: string;
 
   @IsString()
+  password: string;
+
+  @IsString()
   phoneNumber: string;
 
   @IsString()
@@ -19,23 +22,13 @@ export class CreateNurseDto {
   specialization?: string;
 
   @IsString()
-  @IsOptional()
-  licenseNumber?: string;
+  licenseNumber: string;
 
-  @IsDate()
-  @Type(() => Date)
+  @IsArray()
+  @IsString({ each: true })
   @IsOptional()
-  licenseExpiryDate?: Date;
-
-  @IsString()
-  @IsOptional()
-  department?: string;
+  qualifications?: string[];
 
   @IsString()
-  @IsOptional()
-  shift?: string;
-
-  @IsString()
-  @IsOptional()
-  notes?: string;
+  departmentId: string;
 } 

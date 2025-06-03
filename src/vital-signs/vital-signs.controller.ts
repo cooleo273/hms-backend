@@ -34,7 +34,7 @@ export class VitalSignsController {
     @Query('patientId') patientId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('sortBy') sortBy?: 'recordedAt' | 'temperature' | 'heartRate',
+    @Query('sortBy') sortBy?: 'timestamp' | 'temperature' | 'heartRate',
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ) {
     return this.vitalSignsService.findAll(

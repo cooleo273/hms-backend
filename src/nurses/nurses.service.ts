@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNurseDto } from './dto/create-nurse.dto';
 import { UpdateNurseDto } from './dto/update-nurse.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class NursesService {
@@ -12,65 +13,59 @@ export class NursesService {
     const user = await this.prisma.user.create({
       data: {
         email: createNurseDto.email,
+        password: createNurseDto.password,
         role: 'NURSE',
-        profile: {
-          create: {
-            firstName: createNurseDto.firstName,
-            lastName: createNurseDto.lastName,
-            phoneNumber: createNurseDto.phoneNumber,
-          },
-        },
+        firstName: createNurseDto.firstName,
+        lastName: createNurseDto.lastName,
+        phoneNumber: createNurseDto.phoneNumber,
       },
     });
 
     // Create nurse record
     return this.prisma.nurse.create({
       data: {
-        ...createNurseDto,
         userId: user.id,
+        licenseNumber: createNurseDto.licenseNumber,
+        specialization: createNurseDto.specialization,
+        qualifications: createNurseDto.qualifications || [],
+        departmentId: createNurseDto.departmentId,
       },
       include: {
-        user: {
-          include: {
-            profile: true,
-          },
-        },
+        user: true,
+        department: true,
       },
     });
   }
 
   async findAll(
     search?: string,
-    department?: string,
+    departmentId?: string,
     specialization?: string,
-    sortBy?: 'firstName' | 'lastName' | 'department',
-    sortOrder?: 'asc' | 'desc',
+    sortBy?: 'firstName' | 'lastName' | 'createdAt',
+    sortOrder?: Prisma.SortOrder,
   ) {
-    const where = {
+    const where: Prisma.NurseWhereInput = {
       OR: search
         ? [
-            { firstName: { contains: search, mode: 'insensitive' } },
-            { lastName: { contains: search, mode: 'insensitive' } },
-            { email: { contains: search, mode: 'insensitive' } },
+            { user: { firstName: { contains: search, mode: 'insensitive' } } },
+            { user: { lastName: { contains: search, mode: 'insensitive' } } },
+            { user: { email: { contains: search, mode: 'insensitive' } } },
           ]
         : undefined,
-      department: department || undefined,
+      departmentId: departmentId || undefined,
       specialization: specialization || undefined,
     };
 
-    const orderBy = sortBy
-      ? { [sortBy]: sortOrder || 'asc' }
-      : { firstName: 'asc' };
+    const orderBy: Prisma.NurseOrderByWithRelationInput = sortBy
+      ? { user: { [sortBy]: sortOrder || Prisma.SortOrder.asc } }
+      : { user: { firstName: Prisma.SortOrder.asc } };
 
     return this.prisma.nurse.findMany({
       where,
       orderBy,
       include: {
-        user: {
-          include: {
-            profile: true,
-          },
-        },
+        user: true,
+        department: true,
       },
     });
   }
@@ -79,11 +74,8 @@ export class NursesService {
     const nurse = await this.prisma.nurse.findUnique({
       where: { id },
       include: {
-        user: {
-          include: {
-            profile: true,
-          },
-        },
+        user: true,
+        department: true,
       },
     });
 
@@ -111,8 +103,8 @@ export class NursesService {
         updateNurseDto.lastName ||
         updateNurseDto.phoneNumber
       ) {
-        await this.prisma.userProfile.update({
-          where: { userId: nurse.userId },
+        await this.prisma.user.update({
+          where: { id: nurse.userId },
           data: {
             firstName: updateNurseDto.firstName,
             lastName: updateNurseDto.lastName,
@@ -124,13 +116,15 @@ export class NursesService {
       // Update nurse record
       return this.prisma.nurse.update({
         where: { id },
-        data: updateNurseDto,
+        data: {
+          licenseNumber: updateNurseDto.licenseNumber,
+          specialization: updateNurseDto.specialization,
+          qualifications: updateNurseDto.qualifications,
+          departmentId: updateNurseDto.departmentId,
+        },
         include: {
-          user: {
-            include: {
-              profile: true,
-            },
-          },
+          user: true,
+          department: true,
         },
       });
     } catch (error) {
@@ -168,7 +162,7 @@ export class NursesService {
   async getNurseStats() {
     const totalNurses = await this.prisma.nurse.count();
     const departmentStats = await this.prisma.nurse.groupBy({
-      by: ['department'],
+      by: ['departmentId'],
       _count: true,
     });
 
@@ -187,6 +181,10 @@ export class NursesService {
   async getNurseSchedule(nurseId: string, startDate: Date, endDate: Date) {
     const nurse = await this.prisma.nurse.findUnique({
       where: { id: nurseId },
+      include: {
+        user: true,
+        department: true,
+      },
     });
 
     if (!nurse) {
@@ -197,14 +195,22 @@ export class NursesService {
     const appointments = await this.prisma.appointment.findMany({
       where: {
         nurseId,
-        date: {
+        dateTime: {
           gte: startDate,
           lte: endDate,
         },
       },
       include: {
-        patient: true,
-        doctor: true,
+        patient: {
+          include: {
+            user: true,
+          },
+        },
+        doctor: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 

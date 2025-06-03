@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateLabTechnicianDto } from './dto/create-lab-technician.dto';
 import { UpdateLabTechnicianDto } from './dto/update-lab-technician.dto';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class LabTechniciansService {
@@ -12,65 +13,81 @@ export class LabTechniciansService {
     const user = await this.prisma.user.create({
       data: {
         email: createLabTechnicianDto.email,
-        role: 'LAB_TECHNICIAN',
-        profile: {
-          create: {
-            firstName: createLabTechnicianDto.firstName,
-            lastName: createLabTechnicianDto.lastName,
-            phoneNumber: createLabTechnicianDto.phoneNumber,
-          },
-        },
+        password: createLabTechnicianDto.password,
+        role: UserRole.LAB_TECHNICIAN,
+        firstName: createLabTechnicianDto.firstName,
+        lastName: createLabTechnicianDto.lastName,
+        phoneNumber: createLabTechnicianDto.phoneNumber,
       },
     });
 
     // Create lab technician record
     return this.prisma.labTechnician.create({
       data: {
-        ...createLabTechnicianDto,
         userId: user.id,
+        licenseNumber: createLabTechnicianDto.licenseNumber,
+        specialization: createLabTechnicianDto.specialization,
+        qualifications: createLabTechnicianDto.qualifications,
+        departmentId: createLabTechnicianDto.departmentId,
       },
       include: {
-        user: {
-          include: {
-            profile: true,
-          },
-        },
+        user: true,
+        department: true,
       },
     });
   }
 
   async findAll(
     search?: string,
-    department?: string,
+    departmentId?: string,
     specialization?: string,
-    sortBy?: 'firstName' | 'lastName' | 'department',
+    sortBy?: 'firstName' | 'lastName' | 'specialization',
     sortOrder?: 'asc' | 'desc',
   ) {
-    const where = {
-      OR: search
-        ? [
-            { firstName: { contains: search, mode: 'insensitive' } },
-            { lastName: { contains: search, mode: 'insensitive' } },
-            { email: { contains: search, mode: 'insensitive' } },
-          ]
-        : undefined,
-      department: department || undefined,
+    const where: any = {
+      departmentId: departmentId || undefined,
       specialization: specialization || undefined,
     };
 
-    const orderBy = sortBy
+    if (search) {
+      where.OR = [
+        {
+          user: {
+            firstName: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+        },
+        {
+          user: {
+            lastName: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+        },
+        {
+          user: {
+            email: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+        },
+      ];
+    }
+
+    const orderBy: any = sortBy
       ? { [sortBy]: sortOrder || 'asc' }
-      : { firstName: 'asc' };
+      : { user: { firstName: 'asc' } };
 
     return this.prisma.labTechnician.findMany({
       where,
       orderBy,
       include: {
-        user: {
-          include: {
-            profile: true,
-          },
-        },
+        user: true,
+        department: true,
       },
     });
   }
@@ -79,11 +96,8 @@ export class LabTechniciansService {
     const labTechnician = await this.prisma.labTechnician.findUnique({
       where: { id },
       include: {
-        user: {
-          include: {
-            profile: true,
-          },
-        },
+        user: true,
+        department: true,
       },
     });
 
@@ -111,8 +125,8 @@ export class LabTechniciansService {
         updateLabTechnicianDto.lastName ||
         updateLabTechnicianDto.phoneNumber
       ) {
-        await this.prisma.userProfile.update({
-          where: { userId: labTechnician.userId },
+        await this.prisma.user.update({
+          where: { id: labTechnician.userId },
           data: {
             firstName: updateLabTechnicianDto.firstName,
             lastName: updateLabTechnicianDto.lastName,
@@ -124,13 +138,15 @@ export class LabTechniciansService {
       // Update lab technician record
       return this.prisma.labTechnician.update({
         where: { id },
-        data: updateLabTechnicianDto,
+        data: {
+          licenseNumber: updateLabTechnicianDto.licenseNumber,
+          specialization: updateLabTechnicianDto.specialization,
+          qualifications: updateLabTechnicianDto.qualifications,
+          departmentId: updateLabTechnicianDto.departmentId,
+        },
         include: {
-          user: {
-            include: {
-              profile: true,
-            },
-          },
+          user: true,
+          department: true,
         },
       });
     } catch (error) {
@@ -168,7 +184,7 @@ export class LabTechniciansService {
   async getLabTechnicianStats() {
     const totalLabTechnicians = await this.prisma.labTechnician.count();
     const departmentStats = await this.prisma.labTechnician.groupBy({
-      by: ['department'],
+      by: ['departmentId'],
       _count: true,
     });
 
@@ -198,18 +214,22 @@ export class LabTechniciansService {
     }
 
     // Get lab technician's test records within date range
-    const testRecords = await this.prisma.labTest.findMany({
+    const testRecords = await this.prisma.labTestOrder.findMany({
       where: {
-        labTechnicianId,
-        createdAt: {
+        processedById: labTechnician.userId,
+        orderDate: {
           gte: startDate,
           lte: endDate,
         },
       },
       include: {
-        patient: true,
-        doctor: true,
-        testType: true,
+        patient: {
+          include: {
+            user: true,
+          },
+        },
+        orderedBy: true,
+        testCatalog: true,
       },
     });
 

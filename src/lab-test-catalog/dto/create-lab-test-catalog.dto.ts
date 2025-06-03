@@ -14,16 +14,15 @@ export class CreateLabTestCatalogDto {
   category: string;
 
   @IsString()
-  @IsOptional()
-  specimenType?: string;
+  sampleType: string;
 
   @IsString()
   @IsOptional()
   preparationInstructions?: string;
 
-  @IsNumber()
+  @IsString()
   @IsOptional()
-  turnaroundTime?: number;
+  turnAroundTime?: string;
 
   @IsBoolean()
   @IsOptional()

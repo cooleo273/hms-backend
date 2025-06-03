@@ -20,18 +20,31 @@ export class LabTestCatalogService {
     sortBy?: 'name' | 'price' | 'category',
     sortOrder?: 'asc' | 'desc',
   ) {
-    const where = {
-      ...(search && {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } },
-        ],
-      }),
-      ...(category && { category }),
-      ...(isActive !== undefined && { isActive }),
+    const where: any = {
+      category: category || undefined,
+      isActive: isActive !== undefined ? isActive : undefined,
     };
 
-    const orderBy = sortBy ? { [sortBy]: sortOrder || 'asc' } : undefined;
+    if (search) {
+      where.OR = [
+        {
+          name: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          description: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+      ];
+    }
+
+    const orderBy: any = sortBy
+      ? { [sortBy]: sortOrder || 'asc' }
+      : undefined;
 
     return this.prisma.labTestCatalog.findMany({
       where,

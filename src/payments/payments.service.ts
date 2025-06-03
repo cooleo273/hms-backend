@@ -9,7 +9,7 @@ export class PaymentsService {
   constructor(private prisma: PrismaService) {}
 
   async create(createPaymentDto: CreatePaymentDto) {
-    // Verify invoice exists and is pending
+    // Verify invoice exists and is not paid
     const invoice = await this.prisma.invoice.findUnique({
       where: { id: createPaymentDto.invoiceId },
     });
@@ -18,19 +18,24 @@ export class PaymentsService {
       throw new NotFoundException(`Invoice with ID ${createPaymentDto.invoiceId} not found`);
     }
 
-    if (invoice.status !== InvoiceStatus.PENDING) {
-      throw new BadRequestException('Invoice is not pending payment');
+    if (invoice.status === InvoiceStatus.PAID) {
+      throw new BadRequestException('Invoice is already paid');
     }
 
-    if (createPaymentDto.amount > invoice.finalAmount) {
+    if (createPaymentDto.amountPaid > (invoice.finalAmount || invoice.totalAmount)) {
       throw new BadRequestException('Payment amount exceeds invoice amount');
     }
 
     // Create payment
     const payment = await this.prisma.payment.create({
       data: {
-        ...createPaymentDto,
+        invoiceId: createPaymentDto.invoiceId,
+        amountPaid: createPaymentDto.amountPaid,
+        paymentMethod: createPaymentDto.paymentMethod,
         status: createPaymentDto.status || PaymentStatus.PENDING,
+        transactionId: createPaymentDto.transactionId,
+        notes: createPaymentDto.notes,
+        receivedById: createPaymentDto.receivedById,
       },
       include: {
         invoice: {
@@ -38,14 +43,27 @@ export class PaymentsService {
             patient: true,
           },
         },
+        receivedBy: true,
       },
     });
 
-    // If payment is successful, update invoice status
-    if (payment.status === PaymentStatus.COMPLETED) {
+    // Update invoice status based on payment
+    const totalPaid = await this.prisma.payment.aggregate({
+      where: { invoiceId: invoice.id },
+      _sum: { amountPaid: true },
+    });
+
+    const remainingAmount = (invoice.finalAmount || invoice.totalAmount) - (totalPaid._sum.amountPaid || 0);
+
+    if (remainingAmount <= 0) {
       await this.prisma.invoice.update({
         where: { id: invoice.id },
         data: { status: InvoiceStatus.PAID },
+      });
+    } else if (totalPaid._sum.amountPaid && totalPaid._sum.amountPaid > 0) {
+      await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: InvoiceStatus.PARTIALLY_PAID },
       });
     }
 
@@ -57,7 +75,7 @@ export class PaymentsService {
     status?: PaymentStatus,
     startDate?: Date,
     endDate?: Date,
-    sortBy?: 'createdAt' | 'amount' | 'status',
+    sortBy?: 'createdAt' | 'amountPaid' | 'status',
     sortOrder?: 'asc' | 'desc',
   ) {
     const where = {
@@ -82,6 +100,7 @@ export class PaymentsService {
             patient: true,
           },
         },
+        receivedBy: true,
       },
     });
   }
@@ -95,6 +114,7 @@ export class PaymentsService {
             patient: true,
           },
         },
+        receivedBy: true,
       },
     });
 
@@ -116,6 +136,7 @@ export class PaymentsService {
               patient: true,
             },
           },
+          receivedBy: true,
         },
       });
 
@@ -176,7 +197,7 @@ export class PaymentsService {
       by: ['status'],
       _count: true,
       _sum: {
-        amount: true,
+        amountPaid: true,
       },
     });
 
@@ -189,19 +210,20 @@ export class PaymentsService {
             patient: true,
           },
         },
+        receivedBy: true,
       },
     });
 
     return {
       totalPayments,
       totalAmount: statusCounts.reduce(
-        (sum, status) => sum + (status._sum.amount || 0),
+        (sum, status) => sum + (status._sum?.amountPaid || 0),
         0,
       ),
       statusBreakdown: statusCounts.map(status => ({
         status: status.status,
         count: status._count,
-        amount: status._sum.amount,
+        amount: status._sum?.amountPaid || 0,
       })),
       recentPayments,
     };
@@ -217,6 +239,7 @@ export class PaymentsService {
             patient: true,
           },
         },
+        receivedBy: true,
       },
     });
   }
@@ -232,6 +255,7 @@ export class PaymentsService {
             patient: true,
           },
         },
+        receivedBy: true,
       },
     });
   }

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePrescriptionDto } from './dto/create-prescription.dto';
 import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
+import { DispenseStatus } from '@prisma/client';
 
 @Injectable()
 export class PrescriptionsService {
@@ -19,76 +20,82 @@ export class PrescriptionsService {
       );
     }
 
-    // Verify doctor exists
-    const doctor = await this.prisma.doctor.findUnique({
-      where: { id: createPrescriptionDto.doctorId },
+    // Verify medical record exists
+    const medicalRecord = await this.prisma.medicalRecord.findUnique({
+      where: { id: createPrescriptionDto.medicalRecordId },
     });
 
-    if (!doctor) {
+    if (!medicalRecord) {
       throw new NotFoundException(
-        `Doctor with ID ${createPrescriptionDto.doctorId} not found`,
+        `Medical record with ID ${createPrescriptionDto.medicalRecordId} not found`,
       );
-    }
-
-    // Verify all drugs exist
-    for (const drugId of createPrescriptionDto.drugIds) {
-      const drug = await this.prisma.drug.findUnique({
-        where: { id: drugId },
-      });
-
-      if (!drug) {
-        throw new NotFoundException(`Drug with ID ${drugId} not found`);
-      }
     }
 
     // Create prescription
     return this.prisma.prescription.create({
       data: {
-        ...createPrescriptionDto,
-        drugs: {
-          connect: createPrescriptionDto.drugIds.map((id) => ({ id })),
-        },
+        medicalRecordId: createPrescriptionDto.medicalRecordId,
+        patientId: createPrescriptionDto.patientId,
+        prescribedById: createPrescriptionDto.prescribedById,
+        medicationName: createPrescriptionDto.medicationName,
+        dosage: createPrescriptionDto.dosage,
+        form: createPrescriptionDto.form,
+        route: createPrescriptionDto.route,
+        frequency: createPrescriptionDto.frequency,
+        duration: createPrescriptionDto.duration,
+        instructions: createPrescriptionDto.instructions,
+        dispenseStatus: DispenseStatus.PENDING,
       },
       include: {
-        patient: true,
-        doctor: true,
-        drugs: true,
+        medicalRecord: {
+          include: {
+            patient: true,
+          },
+        },
+        prescribedBy: true,
+        dispensedDrugs: true,
       },
     });
   }
 
   async findAll(
     patientId?: string,
-    doctorId?: string,
+    medicalRecordId?: string,
+    prescribedById?: string,
     startDate?: Date,
     endDate?: Date,
-    status?: 'ACTIVE' | 'FILLED' | 'CANCELLED',
-    sortBy?: 'prescriptionDate' | 'createdAt',
+    dispenseStatus?: DispenseStatus,
+    sortBy?: 'createdAt' | 'updatedAt',
     sortOrder?: 'asc' | 'desc',
   ) {
     const where = {
       patientId: patientId || undefined,
-      doctorId: doctorId || undefined,
-      prescriptionDate: startDate && endDate
+      medicalRecordId: medicalRecordId || undefined,
+      prescribedById: prescribedById || undefined,
+      createdAt: startDate && endDate
         ? {
             gte: startDate,
             lte: endDate,
           }
         : undefined,
-      status: status || undefined,
+      dispenseStatus: dispenseStatus || undefined,
     };
 
-    const orderBy = sortBy
+    const orderBy: any = sortBy
       ? { [sortBy]: sortOrder || 'desc' }
-      : { prescriptionDate: 'desc' };
+      : { createdAt: 'desc' };
 
     return this.prisma.prescription.findMany({
       where,
       orderBy,
       include: {
-        patient: true,
-        doctor: true,
-        drugs: true,
+        medicalRecord: {
+          include: {
+            patient: true,
+          },
+        },
+        prescribedBy: true,
+        dispensedDrugs: true,
       },
     });
   }
@@ -97,9 +104,13 @@ export class PrescriptionsService {
     const prescription = await this.prisma.prescription.findUnique({
       where: { id },
       include: {
-        patient: true,
-        doctor: true,
-        drugs: true,
+        medicalRecord: {
+          include: {
+            patient: true,
+          },
+        },
+        prescribedBy: true,
+        dispensedDrugs: true,
       },
     });
 
@@ -133,29 +144,16 @@ export class PrescriptionsService {
         }
       }
 
-      // If doctor ID is being updated, verify new doctor exists
-      if (updatePrescriptionDto.doctorId) {
-        const doctor = await this.prisma.doctor.findUnique({
-          where: { id: updatePrescriptionDto.doctorId },
+      // If medical record ID is being updated, verify new medical record exists
+      if (updatePrescriptionDto.medicalRecordId) {
+        const medicalRecord = await this.prisma.medicalRecord.findUnique({
+          where: { id: updatePrescriptionDto.medicalRecordId },
         });
 
-        if (!doctor) {
+        if (!medicalRecord) {
           throw new NotFoundException(
-            `Doctor with ID ${updatePrescriptionDto.doctorId} not found`,
+            `Medical record with ID ${updatePrescriptionDto.medicalRecordId} not found`,
           );
-        }
-      }
-
-      // If drug IDs are being updated, verify all drugs exist
-      if (updatePrescriptionDto.drugIds) {
-        for (const drugId of updatePrescriptionDto.drugIds) {
-          const drug = await this.prisma.drug.findUnique({
-            where: { id: drugId },
-          });
-
-          if (!drug) {
-            throw new NotFoundException(`Drug with ID ${drugId} not found`);
-          }
         }
       }
 
@@ -163,17 +161,26 @@ export class PrescriptionsService {
       return this.prisma.prescription.update({
         where: { id },
         data: {
-          ...updatePrescriptionDto,
-          drugs: updatePrescriptionDto.drugIds
-            ? {
-                set: updatePrescriptionDto.drugIds.map((id) => ({ id })),
-              }
-            : undefined,
+          medicalRecordId: updatePrescriptionDto.medicalRecordId,
+          patientId: updatePrescriptionDto.patientId,
+          prescribedById: updatePrescriptionDto.prescribedById,
+          medicationName: updatePrescriptionDto.medicationName,
+          dosage: updatePrescriptionDto.dosage,
+          form: updatePrescriptionDto.form,
+          route: updatePrescriptionDto.route,
+          frequency: updatePrescriptionDto.frequency,
+          duration: updatePrescriptionDto.duration,
+          instructions: updatePrescriptionDto.instructions,
+          dispenseStatus: updatePrescriptionDto.dispenseStatus,
         },
         include: {
-          patient: true,
-          doctor: true,
-          drugs: true,
+          medicalRecord: {
+            include: {
+              patient: true,
+            },
+          },
+          prescribedBy: true,
+          dispensedDrugs: true,
         },
       });
     } catch (error) {
@@ -191,10 +198,10 @@ export class PrescriptionsService {
         throw new NotFoundException(`Prescription with ID ${id} not found`);
       }
 
-      // Soft delete by updating status
+      // Soft delete by updating dispense status
       await this.prisma.prescription.update({
         where: { id },
-        data: { status: 'CANCELLED' },
+        data: { dispenseStatus: DispenseStatus.CANCELLED },
       });
 
       return { message: 'Prescription cancelled successfully' };
@@ -215,14 +222,19 @@ export class PrescriptionsService {
     const prescriptions = await this.prisma.prescription.findMany({
       where: {
         patientId,
-        status: 'ACTIVE',
+        dispenseStatus: DispenseStatus.PENDING,
       },
       orderBy: {
-        prescriptionDate: 'desc',
+        createdAt: 'desc',
       },
       include: {
-        doctor: true,
-        drugs: true,
+        medicalRecord: {
+          include: {
+            patient: true,
+          },
+        },
+        prescribedBy: true,
+        dispensedDrugs: true,
       },
     });
 
@@ -232,57 +244,50 @@ export class PrescriptionsService {
     };
   }
 
-  async getDoctorPrescriptions(doctorId: string) {
-    const doctor = await this.prisma.doctor.findUnique({
-      where: { id: doctorId },
+  async getPrescriberPrescriptions(prescribedById: string) {
+    const prescriber = await this.prisma.user.findUnique({
+      where: { id: prescribedById },
     });
 
-    if (!doctor) {
-      throw new NotFoundException(`Doctor with ID ${doctorId} not found`);
+    if (!prescriber) {
+      throw new NotFoundException(`Prescriber with ID ${prescribedById} not found`);
     }
 
     const prescriptions = await this.prisma.prescription.findMany({
       where: {
-        doctorId,
-        status: 'ACTIVE',
+        prescribedById,
+        dispenseStatus: DispenseStatus.PENDING,
       },
       orderBy: {
-        prescriptionDate: 'desc',
+        createdAt: 'desc',
       },
       include: {
-        patient: true,
-        drugs: true,
+        medicalRecord: {
+          include: {
+            patient: true,
+          },
+        },
+        prescribedBy: true,
+        dispensedDrugs: true,
       },
     });
 
     return {
-      doctor,
+      prescriber,
       prescriptions,
     };
   }
 
   async getPrescriptionStats() {
     const totalPrescriptions = await this.prisma.prescription.count();
-    const activePrescriptions = await this.prisma.prescription.count({
-      where: { status: 'ACTIVE' },
-    });
-    const filledPrescriptions = await this.prisma.prescription.count({
-      where: { status: 'FILLED' },
-    });
-
-    const prescriptionsByMonth = await this.prisma.prescription.groupBy({
-      by: ['prescriptionDate'],
+    const statusStats = await this.prisma.prescription.groupBy({
+      by: ['dispenseStatus'],
       _count: true,
-      orderBy: {
-        prescriptionDate: 'asc',
-      },
     });
 
     return {
       totalPrescriptions,
-      activePrescriptions,
-      filledPrescriptions,
-      prescriptionsByMonth,
+      statusStats,
     };
   }
 } 

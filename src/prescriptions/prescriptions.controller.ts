@@ -15,7 +15,7 @@ import { UpdatePrescriptionDto } from './dto/update-prescription.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { UserRole } from '@prisma/client';
+import { UserRole, DispenseStatus } from '@prisma/client';
 
 @Controller('prescriptions')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -35,13 +35,14 @@ export class PrescriptionsController {
     @Query('doctorId') doctorId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
-    @Query('status') status?: 'ACTIVE' | 'FILLED' | 'CANCELLED',
-    @Query('sortBy') sortBy?: 'prescriptionDate' | 'createdAt',
+    @Query('status') status?: DispenseStatus,
+    @Query('sortBy') sortBy?: 'createdAt' | 'updatedAt',
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ) {
     return this.prescriptionsService.findAll(
       patientId,
-      doctorId,
+      undefined, // medicalRecordId
+      doctorId, // prescribedById
       startDate ? new Date(startDate) : undefined,
       endDate ? new Date(endDate) : undefined,
       status,
@@ -71,7 +72,7 @@ export class PrescriptionsController {
   @Get('doctor/:doctorId')
   @Roles(UserRole.ADMIN, UserRole.DOCTOR)
   getDoctorPrescriptions(@Param('doctorId') doctorId: string) {
-    return this.prescriptionsService.getDoctorPrescriptions(doctorId);
+    return this.prescriptionsService.getPrescriberPrescriptions(doctorId);
   }
 
   @Patch(':id')

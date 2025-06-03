@@ -23,35 +23,43 @@ export class InvoicesService {
       : 0;
     const finalAmount = totalAmount - discountAmount;
 
+    // Generate invoice number
+    const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    // Set due date to 30 days from now
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+
     return this.prisma.invoice.create({
       data: {
         ...invoiceData,
         totalAmount,
         discountAmount,
         finalAmount,
-        status: invoiceData.status || InvoiceStatus.PENDING,
-        items: {
+        status: invoiceData.status || InvoiceStatus.DRAFT,
+        invoiceNumber,
+        dueDate,
+        invoiceItems: {
           create: items.map(item => ({
             itemId: item.itemId,
             itemType: item.itemType,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
-            description: item.description,
-            subtotal: item.quantity * item.unitPrice,
+            description: item.description || '',
+            totalPrice: item.quantity * item.unitPrice,
           })),
         },
       },
       include: {
-        items: true,
+        invoiceItems: true,
         patient: true,
-        doctor: true,
+        appointment: true,
       },
     });
   }
 
   async findAll(
     patientId?: string,
-    doctorId?: string,
     status?: InvoiceStatus,
     startDate?: Date,
     endDate?: Date,
@@ -60,7 +68,6 @@ export class InvoicesService {
   ) {
     const where = {
       ...(patientId && { patientId }),
-      ...(doctorId && { doctorId }),
       ...(status && { status }),
       ...(startDate && endDate && {
         createdAt: {
@@ -76,9 +83,9 @@ export class InvoicesService {
       where,
       orderBy,
       include: {
-        items: true,
+        invoiceItems: true,
         patient: true,
-        doctor: true,
+        appointment: true,
       },
     });
   }
@@ -87,9 +94,9 @@ export class InvoicesService {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
       include: {
-        items: true,
+        invoiceItems: true,
         patient: true,
-        doctor: true,
+        appointment: true,
       },
     });
 
@@ -128,21 +135,21 @@ export class InvoicesService {
             totalAmount,
             discountAmount,
             finalAmount,
-            items: {
+            invoiceItems: {
               create: items.map(item => ({
                 itemId: item.itemId,
                 itemType: item.itemType,
                 quantity: item.quantity,
                 unitPrice: item.unitPrice,
-                description: item.description,
-                subtotal: item.quantity * item.unitPrice,
+                description: item.description || '',
+                totalPrice: item.quantity * item.unitPrice,
               })),
             },
           },
           include: {
-            items: true,
+            invoiceItems: true,
             patient: true,
-            doctor: true,
+            appointment: true,
           },
         });
       }
@@ -152,9 +159,9 @@ export class InvoicesService {
         where: { id },
         data: invoiceData,
         include: {
-          items: true,
+          invoiceItems: true,
           patient: true,
-          doctor: true,
+          appointment: true,
         },
       });
     } catch (error) {
@@ -183,9 +190,9 @@ export class InvoicesService {
         where: { id },
         data: { status },
         include: {
-          items: true,
+          invoiceItems: true,
           patient: true,
-          doctor: true,
+          appointment: true,
         },
       });
     } catch (error) {
@@ -208,7 +215,7 @@ export class InvoicesService {
       orderBy: { createdAt: 'desc' },
       include: {
         patient: true,
-        doctor: true,
+        appointment: true,
       },
     });
 
@@ -232,8 +239,8 @@ export class InvoicesService {
       where: { patientId },
       orderBy: { createdAt: 'desc' },
       include: {
-        items: true,
-        doctor: true,
+        invoiceItems: true,
+        appointment: true,
       },
     });
   }
@@ -241,12 +248,12 @@ export class InvoicesService {
   async getUnpaidInvoices() {
     return this.prisma.invoice.findMany({
       where: {
-        status: InvoiceStatus.PENDING,
+        status: InvoiceStatus.DRAFT,
       },
       include: {
         patient: true,
-        doctor: true,
-        items: true,
+        appointment: true,
+        invoiceItems: true,
       },
     });
   }

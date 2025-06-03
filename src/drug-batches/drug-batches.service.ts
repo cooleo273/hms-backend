@@ -211,7 +211,7 @@ export class DrugBatchesService {
     };
   }
 
-  private groupByDrug(batches: DrugBatch[]) {
+  private groupByDrug(batches: (DrugBatch & { drug: { name: string } })[]) {
     const drugGroups = new Map();
     batches.forEach((batch) => {
       if (!drugGroups.has(batch.drugId)) {

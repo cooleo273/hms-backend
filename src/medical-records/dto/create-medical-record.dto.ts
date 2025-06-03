@@ -9,34 +9,35 @@ export class CreateMedicalRecordDto {
   doctorId: string;
 
   @IsString()
-  diagnosis: string;
-
-  @IsString()
-  @IsOptional()
-  symptoms?: string;
-
-  @IsString()
-  @IsOptional()
-  treatment?: string;
-
-  @IsString()
-  @IsOptional()
-  notes?: string;
+  recordedById: string;
 
   @IsDate()
   @Type(() => Date)
   visitDate: Date;
 
+  @IsString()
+  @IsOptional()
+  chiefComplaint?: string;
+
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
-  attachments?: string[];
+  diagnosis?: string[];
 
   @IsString()
   @IsOptional()
-  followUpDate?: string;
+  treatmentPlan?: string;
 
   @IsString()
   @IsOptional()
-  status?: 'ACTIVE' | 'ARCHIVED' | 'DELETED';
+  notes?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  allergiesAtVisit?: string[];
+
+  @IsString()
+  @IsOptional()
+  appointmentId?: string;
 } 

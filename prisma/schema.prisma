@@ -22,11 +22,14 @@ model User {
   appointmentsAsUser         Appointment[]   @relation("UserAppointments")
   dispensedDrugsByPharmacist DispensedDrug[] @relation("DispensedByPharmacist")
   doctor                     Doctor?
+  labTechnician              LabTechnician?
   authoredLabTestOrders      LabTestOrder[]  @relation("AuthoredLabTestOrders")
   processedLabTests          LabTestOrder[]  @relation("ProcessedLabTests")
   recordedMedicalRecords     MedicalRecord[] @relation("RecordedMedicalRecords")
+  nurse                      Nurse?
   patient                    Patient?
   receivedPayments           Payment[]       @relation("ReceivedPayments")
+  pharmacist                 Pharmacist?
   authoredPrescriptions      Prescription[]  @relation("AuthoredPrescriptions")
   staff                      Staff?
   recordedVitals             VitalSign[]     @relation("RecordedVitals")
@@ -47,26 +50,29 @@ model Patient {
   gender                Gender
   admissions            Admission[]
   appointments          Appointment[]   @relation("PatientAppointments")
+  dispensedDrugs        DispensedDrug[]
   invoices              Invoice[]
   labTestOrders         LabTestOrder[]  @relation("PatientLabTestOrders")
   medicalRecords        MedicalRecord[]
   user                  User            @relation(fields: [userId], references: [id])
+  prescriptions         Prescription[]
   vitalSigns            VitalSign[]     @relation("PatientVitalSigns")
 }
 
 model Doctor {
-  id              String        @id @default(uuid())
-  userId          String        @unique
+  id              String          @id @default(uuid())
+  userId          String          @unique
   specialization  String
   qualifications  String[]
   departmentId    String
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
   consultationFee Float?
-  licenseNumber   String?       @unique
-  appointments    Appointment[] @relation("DoctorAppointments")
-  department      Department    @relation(fields: [departmentId], references: [id])
-  user            User          @relation(fields: [userId], references: [id])
+  licenseNumber   String?         @unique
+  appointments    Appointment[]   @relation("DoctorAppointments")
+  department      Department      @relation(fields: [departmentId], references: [id])
+  user            User            @relation(fields: [userId], references: [id])
+  medicalRecords  MedicalRecord[] @relation("DoctorMedicalRecords")
 }
 
 model Staff {
@@ -84,15 +90,58 @@ model Staff {
   user          User        @relation(fields: [userId], references: [id])
 }
 
+model Pharmacist {
+  id             String      @id @default(uuid())
+  userId         String      @unique
+  licenseNumber  String      @unique
+  specialization String?
+  qualifications String[]
+  departmentId   String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  department     Department? @relation(fields: [departmentId], references: [id])
+  user           User        @relation(fields: [userId], references: [id])
+}
+
+model LabTechnician {
+  id             String      @id @default(uuid())
+  userId         String      @unique
+  licenseNumber  String      @unique
+  specialization String?
+  qualifications String[]
+  departmentId   String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  department     Department? @relation(fields: [departmentId], references: [id])
+  user           User        @relation(fields: [userId], references: [id])
+}
+
+model Nurse {
+  id             String        @id @default(uuid())
+  userId         String        @unique
+  licenseNumber  String        @unique
+  specialization String?
+  qualifications String[]
+  departmentId   String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  appointments   Appointment[] @relation("NurseAppointments")
+  department     Department?   @relation(fields: [departmentId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
+}
+
 model Department {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  beds        Bed[]
-  doctors     Doctor[]
-  staff       Staff[]
+  id             String          @id @default(uuid())
+  name           String          @unique
+  description    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  beds           Bed[]
+  doctors        Doctor[]
+  labTechnicians LabTechnician[]
+  nurses         Nurse[]
+  pharmacists    Pharmacist[]
+  staff          Staff[]
 }
 
 model Appointment {
@@ -108,7 +157,9 @@ model Appointment {
   reason             String?
   scheduledById      String
   status             AppointmentStatus @default(SCHEDULED)
+  nurseId            String?
   doctor             Doctor            @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  nurse              Nurse?            @relation("NurseAppointments", fields: [nurseId], references: [id])
   patient            Patient           @relation("PatientAppointments", fields: [patientId], references: [id])
   scheduledBy        User              @relation("UserAppointments", fields: [scheduledById], references: [id])
   invoice            Invoice?
@@ -128,8 +179,10 @@ model MedicalRecord {
   allergiesAtVisit String[]       @default([])
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
+  doctorId         String
   labTestOrders    LabTestOrder[] @relation("MedicalRecordLabTestOrders")
   appointment      Appointment?   @relation(fields: [appointmentId], references: [id])
+  doctor           Doctor         @relation("DoctorMedicalRecords", fields: [doctorId], references: [id])
   patient          Patient        @relation(fields: [patientId], references: [id])
   recordedBy       User           @relation("RecordedMedicalRecords", fields: [recordedById], references: [id])
   prescriptions    Prescription[]
@@ -175,6 +228,7 @@ model Prescription {
   updatedAt       DateTime        @updatedAt
   dispensedDrugs  DispensedDrug[]
   medicalRecord   MedicalRecord   @relation(fields: [medicalRecordId], references: [id])
+  patient         Patient         @relation(fields: [patientId], references: [id])
   prescribedBy    User            @relation("AuthoredPrescriptions", fields: [prescribedById], references: [id])
 }
 
@@ -198,16 +252,17 @@ model Drug {
 }
 
 model DrugBatch {
-  id           String                @id @default(uuid())
-  drugId       String
-  batchNumber  String                @unique
-  expiryDate   DateTime
-  quantity     Int
-  receivedDate DateTime              @default(now())
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
-  drug         Drug                  @relation(fields: [drugId], references: [id])
-  adjustments  DrugBatchAdjustment[]
+  id             String                @id @default(uuid())
+  drugId         String
+  batchNumber    String                @unique
+  expiryDate     DateTime
+  quantity       Int
+  receivedDate   DateTime              @default(now())
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  dispensedDrugs DispensedDrug[]
+  drug           Drug                  @relation(fields: [drugId], references: [id])
+  adjustments    DrugBatchAdjustment[]
 }
 
 model DrugBatchAdjustment {
@@ -232,8 +287,10 @@ model DispensedDrug {
   notes             String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+  batch             DrugBatch?    @relation(fields: [batchId], references: [id])
   dispensedBy       User          @relation("DispensedByPharmacist", fields: [dispensedById], references: [id])
   drug              Drug          @relation(fields: [drugId], references: [id])
+  patient           Patient       @relation(fields: [patientId], references: [id])
   prescription      Prescription? @relation(fields: [prescriptionId], references: [id])
 }
 
@@ -247,49 +304,52 @@ model LabTestCatalog {
   turnAroundTime String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  isActive       Boolean        @default(true)
   labTestOrders  LabTestOrder[]
 }
 
 model LabTestOrder {
-  id                String         @id @default(uuid())
+  id                String          @id @default(uuid())
   patientId         String
   medicalRecordId   String?
   orderedById       String
   testCatalogId     String
-  orderDate         DateTime       @default(now())
-  status            LabTestStatus  @default(PENDING)
-  sampleId          String?        @unique
+  orderDate         DateTime        @default(now())
+  sampleId          String?         @unique
   sampleCollectedAt DateTime?
   result            String?
   resultDate        DateTime?
   notes             String?
   processedById     String?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  medicalRecord     MedicalRecord? @relation("MedicalRecordLabTestOrders", fields: [medicalRecordId], references: [id])
-  orderedBy         User           @relation("AuthoredLabTestOrders", fields: [orderedById], references: [id])
-  patient           Patient        @relation("PatientLabTestOrders", fields: [patientId], references: [id])
-  processedBy       User?          @relation("ProcessedLabTests", fields: [processedById], references: [id])
-  testCatalog       LabTestCatalog @relation(fields: [testCatalogId], references: [id])
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  status            TestOrderStatus @default(PENDING)
+  medicalRecord     MedicalRecord?  @relation("MedicalRecordLabTestOrders", fields: [medicalRecordId], references: [id])
+  orderedBy         User            @relation("AuthoredLabTestOrders", fields: [orderedById], references: [id])
+  patient           Patient         @relation("PatientLabTestOrders", fields: [patientId], references: [id])
+  processedBy       User?           @relation("ProcessedLabTests", fields: [processedById], references: [id])
+  testCatalog       LabTestCatalog  @relation(fields: [testCatalogId], references: [id])
 }
 
 model Invoice {
-  id            String        @id @default(uuid())
-  patientId     String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  appointmentId String?       @unique
-  dueDate       DateTime
-  invoiceNumber String        @unique
-  issueDate     DateTime      @default(now())
-  notes         String?
-  paidAmount    Float         @default(0)
-  totalAmount   Float
-  status        InvoiceStatus @default(DRAFT)
-  appointment   Appointment?  @relation(fields: [appointmentId], references: [id])
-  patient       Patient       @relation(fields: [patientId], references: [id])
-  invoiceItems  InvoiceItem[]
-  payments      Payment[]
+  id             String        @id @default(uuid())
+  patientId      String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  appointmentId  String?       @unique
+  dueDate        DateTime
+  invoiceNumber  String        @unique
+  issueDate      DateTime      @default(now())
+  notes          String?
+  paidAmount     Float         @default(0)
+  totalAmount    Float
+  status         InvoiceStatus @default(DRAFT)
+  discountAmount Float?        @default(0)
+  finalAmount    Float?
+  appointment    Appointment?  @relation(fields: [appointmentId], references: [id])
+  patient        Patient       @relation(fields: [patientId], references: [id])
+  invoiceItems   InvoiceItem[]
+  payments       Payment[]
 }
 
 model InvoiceItem {
@@ -307,18 +367,19 @@ model InvoiceItem {
 }
 
 model Payment {
-  id            String   @id @default(uuid())
+  id            String        @id @default(uuid())
   invoiceId     String
-  paymentDate   DateTime @default(now())
+  paymentDate   DateTime      @default(now())
   amountPaid    Float
-  paymentMethod String
-  transactionId String?  @unique
+  transactionId String?       @unique
   receivedById  String
   notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
-  receivedBy    User     @relation("ReceivedPayments", fields: [receivedById], references: [id])
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  status        PaymentStatus @default(PENDING)
+  paymentMethod PaymentMethod
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id])
+  receivedBy    User          @relation("ReceivedPayments", fields: [receivedById], references: [id])
 }
 
 model Bed {
@@ -391,10 +452,9 @@ enum DispenseStatus {
   CANCELLED
 }
 
-enum LabTestStatus {
+enum TestOrderStatus {
   PENDING
-  SAMPLE_COLLECTED
-  PROCESSING
+  IN_PROGRESS
   COMPLETED
   CANCELLED
 }
@@ -406,4 +466,21 @@ enum InvoiceStatus {
   PARTIALLY_PAID
   VOID
   OVERDUE
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  MOBILE_PAYMENT
+  INSURANCE
 }

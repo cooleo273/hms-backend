@@ -15,7 +15,7 @@ import { UpdateNurseDto } from './dto/update-nurse.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { UserRole } from '@prisma/client';
+import { UserRole, Prisma } from '@prisma/client';
 
 @Controller('nurses')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -34,8 +34,8 @@ export class NursesController {
     @Query('search') search?: string,
     @Query('department') department?: string,
     @Query('specialization') specialization?: string,
-    @Query('sortBy') sortBy?: 'firstName' | 'lastName' | 'department',
-    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+    @Query('sortBy') sortBy?: 'firstName' | 'lastName' | 'createdAt',
+    @Query('sortOrder') sortOrder?: Prisma.SortOrder,
   ) {
     return this.nursesService.findAll(
       search,
