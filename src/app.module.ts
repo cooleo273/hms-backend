@@ -17,6 +17,10 @@ import { DrugsModule } from './drugs/drugs.module';
 import { DrugBatchesModule } from './drug-batches/drug-batches.module';
 import { LabTestCatalogModule } from './lab-test-catalog/lab-test-catalog.module';
 import { LabTestOrdersModule } from './lab-test-orders/lab-test-orders.module';
+import { InvoicesModule } from './invoices/invoices.module';
+import { PaymentsModule } from './payments/payments.module';
+import { DispensedDrugsModule } from './dispensed-drugs/dispensed-drugs.module';
+import { VitalSignsModule } from './vital-signs/vital-signs.module';
 
 @Module({
   imports: [
@@ -38,6 +42,10 @@ import { LabTestOrdersModule } from './lab-test-orders/lab-test-orders.module';
     DrugBatchesModule,
     LabTestCatalogModule,
     LabTestOrdersModule,
+    InvoicesModule,
+    PaymentsModule,
+    DispensedDrugsModule,
+    VitalSignsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
